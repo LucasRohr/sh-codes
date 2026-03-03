@@ -8,7 +8,7 @@
 # Intervalo de polling em segundos
 readonly POLLING_INTERVAL=2
 
-# Controle para usar Parte 2 ou Parte 3
+# Controle para usar Parte 2 ou Parte 3 via flag
 readonly USE_SILENT_MODE=true
 
 # Função para logar erros no stderr
@@ -20,14 +20,14 @@ log_error() {
 # Retorna 0 se o diretório for válido, 1 caso contrário
 validate_mon_dir() {
     # Verificar se a variável de ambiente MON_DIR está definida e não vazia
-    # -z verifica se é vazia além se existe
+    # -z verifica se é vazia além de se existe
     if [ -z "$MON_DIR" ]; then
         log_error "A variável de ambiente MON_DIR não está definida ou está vazia."
         log_error "Uso: MON_DIR=/caminho/do/diretorio ./dir_monitor.sh"
         exit 1
     fi
 
-    # -d verifica se é um diretório existente e acessível
+    # -d verifica se é um diretório existente e acessível, necessário para monitorar
     if [ ! -d "$MON_DIR" ]; then
         log_error "O caminho '$MON_DIR' não existe ou não é um diretório."
         exit 1
@@ -43,7 +43,7 @@ list_entries() {
     while IFS= read -r -d '' filepath; do
         local name
 
-        # -basename retorna o nome do arquivo ou diretório sem o caminho
+        # (basename -- "$filepath") retorna o nome do arquivo ou diretório sem o caminho
         name=$(basename -- "$filepath")
 
         # Omite arquivos de backup
@@ -55,6 +55,7 @@ list_entries() {
         esac
 
         # printf é mais seguro que echo para nomes com caracteres especiais
+        # usado aqui para evitar problemas com esses caracteres
         printf '%s\n' "$name"
 
     # -maxdepth 1 limita a busca em um nível de profundidade
@@ -68,18 +69,18 @@ list_entries() {
 # Verifica o diretório a cada intervalo de polling e imprime as entradas
 monitor_dir_list() {
     while true; do
-        echo "--- $(date '+%Y-%m-%d %H:%M:%S') | $MON_DIR ---"
-        list_entries
+        echo "--- $(date '+%Y-%m-%d %H:%M:%S') | $MON_DIR ---" # Imprime data e hora e diretório monitorado
+        list_entries # Lista as entradas no diretório (função auxiliar)
         echo ""
 
-        sleep "$POLLING_INTERVAL"
+        sleep "$POLLING_INTERVAL" # Aguarda o intervalo de polling
     done
 }
 
-# Parte 3: Função para monitorar o diretório
-# Verifica o diretório a cada intervalo de polling e imprime comando passado ao verificar atualização
+# Parte 3: Função para monitorar o diretório de forma silenciosa e com disparo de comando fornecido
+# Verifica o diretório a cada intervalo de polling e executa o comando passado ao verificar atualização
 monitor_dir_silent_updates() {
-    # Salva snapshot inicial
+    # Salva snapshot anterior para comparação
     local old_snapshot
     old_snapshot=$(list_entries)
 
@@ -87,7 +88,7 @@ monitor_dir_silent_updates() {
         # Aguarda o intervalo de polling
         sleep "$POLLING_INTERVAL"
 
-        # Salva snapshot atual
+        # Salva snapshot atual para comparação
         new_snapshot=$(list_entries)
 
         # Compara snapshots
@@ -99,8 +100,8 @@ monitor_dir_silent_updates() {
             "$@" &
             disown
 
-            # Atualiza o snapshot para a próximo comparação
-            snapshot_anterior="$snapshot_atual"
+            # Atualiza o snapshot anterior para a próxima comparação
+            old_snapshot="$new_snapshot"
         fi
     done
 }
@@ -114,9 +115,9 @@ main() {
     echo "Intervalo de polling: ${POLLING_INTERVAL}s"
 
     if [ "$USE_SILENT_MODE" = true ]; then
-        # Parte 3: Iniciar monitoramento silencioso das atualizações
+        # Parte 3: Iniciar monitoramento silencioso das atualizações e disparo de comando fornecido
 
-        # Se nenhum argumento for fornecido, encerra com erro
+        # Se nenhum argumento de comando for fornecido, encerra com erro, pois é necessário para disparo de comando
         if [ $# -eq 0 ]; then
             log_error "Nenhum comando fornecido."
             log_error "Uso: MON_DIR=/caminho ./dir_monitor.sh <comando> [args...]"
@@ -124,13 +125,12 @@ main() {
             exit 1
         fi
 
-        # Passa o comando fornecido como argumento para a função
+        # Caso contrário, passa o comando fornecido como argumento para a função
         monitor_dir_silent_updates "$@"
     else
         # Parte 2: Iniciar monitoramento com print das entradas no diretório
-        # Iniciar monitoramento com print das entradas no diretório (Parte 2)
         monitor_dir_list
     fi
 }
 
-main "$@"
+main "$@" # Passa todos os argumentos para a função main e executa o script
