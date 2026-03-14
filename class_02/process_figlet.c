@@ -34,7 +34,7 @@ void handle_signal(int sig) {
 
 int main() {
     struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
+    memset(&sa, 0, sizeof(sa)); // inicializa o struct sigaction com 0
     sa.sa_handler = &handle_signal; // define a função de tratamento de sinal
 
     printf("PID do processo pai: %d\n", getpid());
