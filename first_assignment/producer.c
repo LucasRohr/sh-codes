@@ -18,7 +18,7 @@ static const char *QUALITY_NAMES[NUM_QUALITY_LEVELS] = {
 
 // Loop principal do produtor:
 // Gera produtos aleatórios e os insere na esteira usando os semáforos corretos
-static void generate_products(Conveyor *conveyor, int producer_id,
+void generate_products(Conveyor *conveyor, int producer_id,
                                sem_t *sem_mutex,
                                sem_t *sem_empty[NUM_QUALITY_LEVELS],
                                sem_t *sem_full[NUM_QUALITY_LEVELS]) {
@@ -60,13 +60,12 @@ static void generate_products(Conveyor *conveyor, int producer_id,
         sem_post(sem_mutex); // sai da seção crítica
         sem_post(sem_full[product.quality]); // sinaliza item disponível
 
-        printf("[PRODUTOR %d] Produto #%d | Tipo: %-12s | Nome: %-12s | Qualidade: %s | Tempo de producao: %.0f ms | Tempo de entrada na esteira: %.0f ms\n",
+        printf("[PRODUTOR %d] Produto #%d | %-14s | Tipo: %-12s | Qualidade: %s | Tempo de producao: %.0f ms\n",
                producer_id, product.id,
-               PRODUCT_TYPE_NAMES[product.type],
                product.name,
+               PRODUCT_TYPE_NAMES[product.type],
                QUALITY_NAMES[product.quality],
-               product.production_time_ms,
-               timespec_diff_ms(product.timestamp_in, current_time));
+               product.production_time_ms);
         fflush(stdout);
     }
 }

@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
-#include <errno.h>
 #include <semaphore.h>
 #include "conveyor.h"
 
@@ -29,27 +28,25 @@ void consume_products(Conveyor *conveyor, int consumer_id,
     Quality quality = (Quality)consumer_id; // cada consumidor trata uma qualidade fixa
 
     while (1) {
-        // Quando a simulação termina (indicado na main), tenta retirar itens restantes sem bloquear.
-        // Se não houver mais itens, encerra o loop.
-        if (conveyor->simulation_done) {
-            if (sem_trywait(sem_full[quality]) == -1) {
-                break; // fila vazia e simulação encerrada — consumidor finaliza
-            }
-        } else {
-            sem_wait(sem_full[quality]); // bloqueia até haver produto disponível
-        }
+        // Bloqueia até o pai sinalizar via sem_post(sem_full[quality])
+        // O pai envia um post extra após simulation_done = 1 para desbloquear consumidores que estejam em espera.
+        sem_wait(sem_full[quality]);
 
         // Entra na seção crítica: retira o produto da fila
         sem_wait(sem_mutex);
 
         Product product;
-        
+
         // Remove o produto da fila, tratando cenários de erro
         if (conveyor_dequeue(conveyor, quality, &product) == -1) {
-            // Não deveria ocorrer pois o semáforo garante item disponível
+            // Fila vazia: o post foi o post extra do pai sinalizando o fim.
+            // Se simulation_done estiver setado, encerra. Caso contrário devolve o token e continua pois houve erro
+            
             sem_post(sem_mutex); // sai da seção crítica
-            sem_post(sem_full[quality]); // devolve o token ao semáforo
-            continue; // continua o loop
+            if (conveyor->simulation_done) break; // se a simulação terminou, encerra
+            sem_post(sem_full[quality]); // devolve o token ao semáforo se houve erro
+
+            continue;
         }
 
         clock_gettime(CLOCK_REALTIME, &product.timestamp_out); // registra saída da esteira
